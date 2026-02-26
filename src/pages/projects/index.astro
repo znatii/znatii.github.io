@@ -1,0 +1,19 @@
+---
+import { PROJECTS_CONFIG } from '~/config'
+import Layout from '~/layouts/Layout.astro'
+import PageTitle from '~/components/base/PageTitle.astro'
+
+const { title, description, introduce } = PROJECTS_CONFIG
+---
+
+<Layout {title} {description}>
+  <div class="relative z-[1] py-8 pb-10">
+    <div class="px-6 sm:px-8">
+      <PageTitle {title} {introduce} />
+    </div>
+    <div class="flex flex-col items-center justify-center py-20 fade-up">
+      <span class="icon-[mdi--hammer-wrench] size-16 text-muted-foreground mb-6" />
+      <h2 class="text-2xl font-semibold mb-2">In Progress</h2>
+    </div>
+  </div>
+</Layout>

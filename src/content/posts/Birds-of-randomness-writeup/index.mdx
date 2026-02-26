@@ -1,0 +1,220 @@
+---
+title: "Birds of randomness (Crypto) HTB"
+description: "Curvas elípticas y PRNG predecible. Baby-Step Gigant-Step attack "
+pubDate: 2025-08-23
+tags: ["ECC", "writeups", "crypto", "HTB", "baby-step-giant-step", "PRNG"]
+cover: assets/cover.png
+---
+
+_You think you found your soulmate, but you lost the train ticket that your love gave you to meet again. The only thing that you remember is the coordinates of the departing station and your love disappearing into the steam of the train._
+
+### Análisis del reto
+Este reto usa _Curvas Elípticas_ para calcular las coordenadas de las estaciones de tren en la que buscaremos a nuestro "amor", en primer lugar se establece la curva y el generador con los siguientes parametros, aparentemente ninguno es de una longitud extraña o vulnerable:
+```python
+class TrainRoute:  
+    def __init__(self, a=None):  
+        self.p = 17101937747109687265202713197737423  
+        self.Gx = 3543321030468950376213178213609418  
+        self.Gy = 14807290861072031659976937040569354  
+        self.ec_order = 17101937747109687496599931614463506  
+     burp   self.E = ecc.CurveFp(self.p, 2, 3)  
+        self.G = ecc.Point(self.E, self.Gx, self.Gy, self.ec_order)
+```
+Para calcular la clave privada, se usa como semilla base un número aleatorio de 32 bits, a la cual se le aplicarán una serie de "rotaciones" hasta que cumpla ciertas condiciones  para terminar usandose como clave privada. "a" es el número aleatorio.
+```python
+		a, x = divmod(a, 30268)  
+		a, y = divmod(a, 30306)  
+		a, z = divmod(a, 30322)  
+		self.seed = int(x) + 1, int(y) + 1, int(z) + 1
+		
+def rotate(self):  
+    x, y, z = self.seed  
+    x = (171 * x) % 30269  
+    y = (172 * y) % 30307  
+    z = (170 * z) % 30323  
+    self.seed = x, y, z  
+  
+def goToNextStation(self):  
+    while True:  
+        self.rotate()  
+        x, y, z = self.seed  
+  
+        if(isPrime(x) and isPrime(y) and isPrime(z)):  
+            d = x * y * z  
+            new_point = d * self.G  
+            return int(new_point.x()), int(new_point.y())
+```
+Como se puede ver que la semilla se divide por 30268, el resultado se divide por 30306 y el siguiente 30322 y nos quedamos con el resto de cada operacion  (x,y,z)
+La funcion _goToNextStation_ es la que calcula la clave privada y el siguiente punto (clave pública), para que se pueda considerar una clave valida, se rotará la seed (x,y,z) hasta que los tres sean primos. Se ve que se usa un PRNG de 5 digitos (algoritmo WichmannHill). Por lo que estos números pueden llegar a ser predecibles y ademas $d$ puede llegar a ser factorizable (producto de 3 primos de 5 digitos)
+
+Se nos dan las primeras coordenadas y debemos predecir las siguientes, tenemos 6 intentos.
+
+```python
+def main(s):  
+    route = TrainRoute(getTicketNumber())  
+  
+    station_coords = route.goToNextStation()  
+    sendMessage(  
+        s, f'The coordinates of the departing station were: {station_coords}\n')  
+  
+    destination_coords = route.goToNextStation()  
+    sendMessage(s, 'Your lover has arrived to the destination. Hurry up!\n')
+	pegions_left = 6  
+	sendMessage(  
+	    s, f'Luckily you have {pegions_left} mechapegions in your pockets.\n')  
+	sendMessage(  
+	    s, 'Use them to find out if your lover is at the destination you think.\n')
+```
+
+### Ataque 
+Como se ha visto, $d$ no es excesivamente grande (factor de 3 primos de 5 digitos), $d = x*y*z$ donde $x,y,z <30323$, entonces en el peor de los casos $d=30323³=2.7*10^{13}$ lo que nos queda $√d ≈ 5.2 × 10⁶$, computacionalmente manejable.
+Ademas conocemos la cota superior $d<30269 × 30307 × 30323$, un dato importante para resolver el problema del algoritmo discreto.
+El camino a seguir parece que es el siguiente:
+1. Calcular $d1$ resolviendo el ECDLP, Problema del logaritmo discreto usando el ataque de Baby-Step Gigant-Step 
+2. Factorizar $d1$ en sus tres factores primos
+3. Predecir el siguiente estado del PRNG
+4. Tenemos 6 oportunidades ya que aunque conozcamos los 3 factores no sabemos el orden en el que se usaron, por lo que tenemos 6 posibilidades
+
+### Writeup
+
+Vamos a seguir los pasos que comentamos antes, en primer lugar vamos a definir la curva.
+```python
+import math  
+from itertools import permutations  
+from ecdsa import ellipticcurve as ecc  
+from Crypto.Util.number import isPrime  
+  
+# Curva elíptica  
+p = 17101937747109687265202713197737423  
+Gx = 3543321030468950376213178213609418  
+Gy = 14807290861072031659976937040569354  
+ec_order = 17101937747109687496599931614463506  
+E = ecc.CurveFp(p, 2, 3)  
+G = ecc.Point(E, Gx, Gy, ec_order)
+```
+Para encontrar los factores de $d$ necesitaremos la lista de primos menores de **30323** ya que es el modulo mayor, por lo que ninguno de los factores sera mayor.
+```python
+def primos(n):  
+    is_prime = [True] * (n + 1)  
+    is_prime[0] = is_prime[1] = False  
+    for i in range(2, int(math.sqrt(n)) + 1):  
+        if is_prime[i]:  
+            for j in range(i * i, n + 1, i):  
+                is_prime[j] = False  
+    return [i for i in range(2, n + 1) if is_prime[i]]
+    
+primes_list = primos(30323)
+```
+También necesitaremos el codigo del PRNG para simular el estado y predecir las coordenadas, por lo que replicamos exactamente la lógica del reto.
+```python
+def rotate(seed):
+    x, y, z = seed
+    x = (171 * x) % 30269
+    y = (172 * y) % 30307
+    z = (170 * z) % 30323
+    return (x, y, z)
+
+def next_station(state):
+    while True:
+        state = rotate(state)
+        x, y, z = state
+        if isPrime(x) and isPrime(y) and isPrime(z):
+            d = x * y * z
+            P = d * G
+            return (int(P.x()), int(P.y()))
+```
+Ahora, necesitamos el código del ataque que vamos a usar en este caso, Baby-Step Gigant-Step
+1. **Baby Steps**: Precalcula y almacena $j×G$ para $j = 1...m$
+2. **Giant Steps**: Calcula $P - i×(m×G)$ para $i = 1...m$
+3. **Busca coincidencia**: Cuando encuentra que $j×G = P - i×(m×G)$, entonces $d = j + i×m$
+
+```python
+# Algoritmo baby-step giant-step para resolver el logaritmo discreto  
+def BSGS(P, G, M):  #Punto, Curva, mayor d posible
+    m = int(math.isqrt(M)) + 1  
+    print(f"[+] Using m = {m}")  
+  
+    # Precalcular m*G  
+    mG = m * G  
+    print("[+] Computed mG")  
+  
+    # Baby steps: almacenar puntos j*G para j=1..m  
+    baby = {}  
+    current = G  
+    for j in range(1, m + 1):  
+        if j % 100000 == 0:  
+            print(f"[+] Baby step {j}/{m}")  
+        x = int(current.x())  
+        y = int(current.y())  
+        baby[(x, y)] = j  
+        current = current + G  
+    print("[+] Baby steps completed")  
+  
+    # Giant steps: buscar P - i*m*G en baby steps  
+    current = P  
+    minus_mG = -mG  
+    for i in range(0, m + 1):  
+        if i % 100000 == 0:  
+            print(f"[+] Giant step {i}/{m}")  
+        if current is None:  
+            d = i * m  
+            if 1 <= d <= M:  
+                return d  
+        else:  
+            x = int(current.x())  
+            y = int(current.y())  
+            if (x, y) in baby:  
+                j = baby[(x, y)]  
+                d = i * m + j  
+                if 1 <= d <= M:  
+                    return d  
+        current = current + minus_mG  
+    return None
+```
+
+Creamos el punto $P1$ para calcular $d1$ tal que $P1=d1*G$ usando el ataque de antes y por ultimo factorizamos $d1$ en los tres primos.
+```python
+# Calcular d1 para (primera estación)
+M = 30268 * 30306 * 30322  # mayor d posible
+d1 = solve_dl(P1, G, M)
+
+### Factorizar d1 en tres primos
+factors = []
+temp = d1
+for p in primes_list:
+    while temp % p == 0:
+        factors.append(p)
+        temp //= p
+    if temp == 1:
+        break
+```
+Finalmente, con los tres primos podremos predecir el siguiente punto, el cual sera la solución, teniendo en cuenta que tenemos 6 posibles combinaciones (permutacion de 3)  y probamos cual de las 6 combinaciones resuelve el reto.
+```python
+# Generar permutaciones de los factores
+candidates = list(permutations(factors))
+next_points = []
+for cand in candidates:
+    next_point = next_station(cand)
+    next_points.append(next_point)
+```
+
+### Output
+
+```
+[+] Enter x1: 3428864647596822132441287270704861
+[+] Enter y1: 14285532721947366128755890796325284
+[+] Solving discrete log for d1...
+[+] Using m = 5273939
+[+] Computed mG
+[+] Baby step 100000/5273939
+[+] Baby step 200000/5273939
+...
+[+] Baby step 5100000/5273939
+[+] Baby step 5200000/5273939
+[+] Baby steps completed
+[+] Giant step 0/5273939
+[+] Found d1 = 5699466221
+[+] Factors: [239, 2473, 9643]
+[+] Computed candidate points for the next station
+[(305954268276492469392172413348450, 12919694927511434464549567069038228), (10086275924322886605222214856022999, 15423087555193874630114303275551577), (10855500825943079397230099366895337, 1740259238751209310074858782631799), (9827528538597361274655184367749156, 2144401998434754452686073764402848), (10096051336583244131022850246433104, 14404735154846391684833195615715567), (15495654979591332822833437596261090, 17087645792430133778320442371022223)]
+```
