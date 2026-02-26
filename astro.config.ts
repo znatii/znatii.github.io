@@ -16,7 +16,7 @@ export default defineConfig({
     defaultStrategy: 'viewport',
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss() as any],
   },
   markdown: {
     syntaxHighlight: false,
