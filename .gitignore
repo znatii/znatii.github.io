@@ -12,9 +12,6 @@ dist-ssr/
 
 # Astro
 .astro/
-astro.config.mjs
-astro.config.ts
-astro.config.js
 # only needed if you use hybrid/server rendering
 # see https://docs.astro.build/en/guides/server-side-rendering/#configuring-server-side-rendering
 # server/
