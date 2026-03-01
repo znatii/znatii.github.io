@@ -10,27 +10,41 @@ export function postsSort(posts: CollectionEntry<'posts'>[]) {
 }
 
 // 获取所有非草稿文章，按时间排序
-export async function getAllPosts(): Promise<CollectionEntry<'posts'>[]> {
+export async function getAllPosts(lang: 'es' | 'en' = 'es'): Promise<CollectionEntry<'posts'>[]> {
   const allPosts = await getCollection('posts')
-  return postsSort(allPosts.filter((post) => !post.data.draft))
+  const validPosts = allPosts.filter((post) => {
+    if (post.data.draft) return false
+    if (lang === 'en') return post.id.startsWith('en/')
+    return !post.id.startsWith('en/')
+  })
+  return postsSort(validPosts)
 }
 
 // 获取所有置顶文章
-export async function getPinnedPosts(): Promise<CollectionEntry<'posts'>[]> {
+export async function getPinnedPosts(lang: 'es' | 'en' = 'es'): Promise<CollectionEntry<'posts'>[]> {
   const allPosts = await getCollection('posts')
-  const pinnedPosts = allPosts.filter((post) => post.data.pinned)
+  const pinnedPosts = allPosts.filter((post) => {
+    if (!post.data.pinned) return false
+    if (lang === 'en') return post.id.startsWith('en/')
+    return !post.id.startsWith('en/')
+  })
   return postsSort(pinnedPosts)
 }
 
 // 获取最新的固定数量的文章
-export async function getNumPosts(size: number): Promise<CollectionEntry<'posts'>[]> {
+export async function getNumPosts(size: number, lang: 'es' | 'en' = 'es'): Promise<CollectionEntry<'posts'>[]> {
   const allPosts = await getCollection('posts')
-  return postsSort(allPosts.filter((post) => !post.data.draft)).slice(0, size)
+  const validPosts = allPosts.filter((post) => {
+    if (post.data.draft) return false
+    if (lang === 'en') return post.id.startsWith('en/')
+    return !post.id.startsWith('en/')
+  })
+  return postsSort(validPosts).slice(0, size)
 }
 
 // 获取标签
-export async function getAllTags(): Promise<Record<string, number>> {
-  const allPosts = await getAllPosts()
+export async function getAllTags(lang: 'es' | 'en' = 'es'): Promise<Record<string, number>> {
+  const allPosts = await getAllPosts(lang)
   const tags = allPosts.flatMap((post) => post.data.tags || [])
   return tags.reduce(
     (acc, tag) => {

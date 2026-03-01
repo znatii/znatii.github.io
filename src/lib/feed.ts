@@ -225,12 +225,15 @@ export async function generateRSS20(): Promise<string> {
     <generator>Astro Litos Theme</generator>
     <atom:link href="${siteUrl}/rss.xml" rel="self" type="application/rss+xml" />
     ${processedPosts
-      .map(
-        (post) => `
+      .map((post) => {
+        const isEn = post.id.startsWith('en/');
+        const cleanId = post.id.replace(/^en\//, '');
+        const postLink = isEn ? `${siteUrl}/en/posts/${cleanId}` : `${siteUrl}/posts/${cleanId}`;
+        return `
     <item>
       <title>${escapeXml(post.data.title)}</title>
-      <link>${siteUrl}/posts/${post.id}</link>
-      <guid>${siteUrl}/posts/${post.id}</guid>
+      <link>${postLink}</link>
+      <guid>${postLink}</guid>
       <updated>${(post.data.updatedDate || post.data.pubDate).toISOString()}</updated>
       <pubDate>${post.data.pubDate.toISOString()}</pubDate>
       <description><![CDATA[${post.data.description || ''}]]></description>
@@ -238,7 +241,7 @@ export async function generateRSS20(): Promise<string> {
       <author>${escapeXml(post.data.author || author)}</author>
       ${post.data.tags ? post.data.tags.map((tag) => `<category>${escapeXml(tag)}</category>`).join('') : ''}
     </item>`
-      )
+      })
       .join('')}
   </channel>
 </rss>`
@@ -267,12 +270,15 @@ export async function generateAtom10(): Promise<string> {
   <generator uri="https://github.com/Dnzzk2/Litos" version="5.0">Astro Litos Theme</generator>
   <rights>Copyright © ${new Date().getFullYear()} ${escapeXml(author)}</rights>
   ${processedPosts
-    .map(
-      (post) => `
+    .map((post) => {
+      const isEn = post.id.startsWith('en/');
+      const cleanId = post.id.replace(/^en\//, '');
+      const postLink = isEn ? `${siteUrl}/en/posts/${cleanId}` : `${siteUrl}/posts/${cleanId}`;
+      return `
   <entry>
     <title>${escapeXml(post.data.title)}</title>
-    <link href="${siteUrl}/posts/${post.id}" rel="alternate" type="text/html"/>
-    <id>${siteUrl}/posts/${post.id}</id>
+    <link href="${postLink}" rel="alternate" type="text/html"/>
+    <id>${postLink}</id>
     <updated>${(post.data.updatedDate || post.data.pubDate).toISOString()}</updated>
     <published>${post.data.pubDate.toISOString()}</published>
     <author>
@@ -282,7 +288,7 @@ export async function generateAtom10(): Promise<string> {
     <content type="html"><![CDATA[${post.htmlContent}]]></content>
     ${post.data.tags ? post.data.tags.map((tag) => `<category term="${escapeXml(tag)}" />`).join('\n    ') : ''}
   </entry>`
-    )
+    })
     .join('')}
 </feed>`
 }

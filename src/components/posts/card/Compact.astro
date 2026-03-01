@@ -6,6 +6,10 @@ import type { CardProps } from './List.astro'
 interface Props extends CardProps {}
 
 const { post, class: className, style }: Props = Astro.props
+
+const isEn = post.id.startsWith('en/');
+const cleanId = post.id.replace(/^en\//, '');
+const postHref = isEn ? `/en/posts/${cleanId}` : `/posts/${cleanId}`;
 ---
 
 <div class:list={['group relative block py-6 border-b border-border/60 last:border-none', className]} {style}>
@@ -28,7 +32,7 @@ const { post, class: className, style }: Props = Astro.props
         )
       }
     </div>
-    <a href={`/posts/${post.id}`} class="block">
+    <a href={postHref} class="block">
       <div class="text-base font-semibold text-foreground leading-tight group-hover:text-primary transition-colors line-clamp-2">
         {post.data.title}
       </div>

@@ -9,7 +9,7 @@ import List from '~/components/posts/card/List.astro'
 import PageTitle from '~/components/base/PageTitle.astro'
 
 export const getStaticPaths: GetStaticPaths = async ({ paginate }) => {
-  const sortedPosts = await getAllPosts('es')
+  const sortedPosts = await getAllPosts('en')
 
   return paginate(sortedPosts, {
     pageSize: POSTS_CONFIG.postPageConfig.size,
@@ -31,6 +31,6 @@ const { title, description, introduce } = POSTS_CONFIG
     <div class="mt-12 fade-up">
       <List posts={page.data} type={POSTS_CONFIG.postPageConfig.type} coverLayout={POSTS_CONFIG.postPageConfig?.coverLayout} />
     </div>
-    <Pagination {page} baseUrl="/posts" />
+    <Pagination {page} baseUrl="/en/posts" />
   </div>
 </Layout>

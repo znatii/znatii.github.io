@@ -5,29 +5,36 @@ import HeaderGradient from '~/components/theme/HeaderGradient.astro'
 import SectionDivider from '~/components/base/SectionDivider.astro'
 import HeaderLink from '~/components/base/HeaderLink.astro'
 import SearchSwitch from '~/components/base/SearchSwitch.astro'
-import { Image } from 'astro:assets'
-import favicon from '../../public/favicon.svg'
+import LanguageToggle from '~/components/base/LanguageToggle.astro'
+
+const currentPath = Astro.url.pathname;
+const isEnglish = currentPath.startsWith('/en');
+const basePath = isEnglish ? '/en' : '';
 ---
 
 <HeaderGradient />
 <header>
   <div class="mx-auto global-layout-width flex justify-between px-6 sm:px-8 py-4 lg:px-8">
     <div class="flex gap-3 sm:gap-6 items-center flex-shrink-0">
-      <a href="/" class="pointer-events-auto select-none" transition:persist>
-        <Image src={favicon} width={1000} height={1000} alt="Logo" class="w-8 h-8" densities={[1, 2]} loading="eager" />
+      <a href={basePath || '/'} class="pointer-events-auto select-none overflow-hidden rounded-full" transition:persist>
+        <img src="https://github.com/znatii.png" alt="ZNATI" class="w-8 h-8 rounded-full" loading="eager" />
       </a>
       <div class="flex gap-1">
         {
-          HEADER_LINKS.map((link) => (
-            <HeaderLink href={link.url} background>
-              {link.name}
-            </HeaderLink>
-          ))
+          HEADER_LINKS.map((link) => {
+            const linkHref = link.url === '/' ? (basePath || '/') : `${basePath}${link.url}`
+            return (
+              <HeaderLink href={linkHref} background>
+                {link.name}
+              </HeaderLink>
+            )
+          })
         }
       </div>
     </div>
     <div class="flex gap-2 items-center" transition:persist="header-theme-toggle">
       <SearchSwitch />
+      <LanguageToggle />
       <a
         href="/atom.xml"
         target="_blank"

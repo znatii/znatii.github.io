@@ -8,6 +8,10 @@ interface Props extends CardProps {}
 
 const { post, class: className, style }: Props = Astro.props
 const recommendText = POSTS_CONFIG.recommendText
+
+const isEn = post.id.startsWith('en/');
+const cleanId = post.id.replace(/^en\//, '');
+const postHref = isEn ? `/en/posts/${cleanId}` : `/posts/${cleanId}`;
 ---
 
 <article class:list={['group relative pl-10 pr-4 sm:pr-32 md:pr-44', className]} {style}>
@@ -54,7 +58,7 @@ const recommendText = POSTS_CONFIG.recommendText
         </div>
       </div>
 
-      <a href={`/posts/${post.id}`} class="block group/title">
+      <a href={postHref} class="block group/title">
         <div class="text-base font-semibold text-foreground/90 group-hover:text-primary transition-colors">
           {post.data.title}
         </div>

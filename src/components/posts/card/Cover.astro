@@ -8,6 +8,10 @@ interface Props extends CardProps {}
 
 const { post, class: className, style }: Props = Astro.props
 const recommendText = POSTS_CONFIG.recommendText
+
+const isEn = post.id.startsWith('en/');
+const cleanId = post.id.replace(/^en\//, '');
+const postHref = isEn ? `/en/posts/${cleanId}` : `/posts/${cleanId}`;
 ---
 
 <article class:list={['group relative flex flex-col justify-center bg-background', className]} {style}>
@@ -30,7 +34,7 @@ const recommendText = POSTS_CONFIG.recommendText
       }
     </div>
 
-    <a href={`/posts/${post.id}`} class="group/title">
+    <a href={postHref} class="group/title">
       <div class="text-base font-semibold transition-colors group-hover/title:text-primary line-clamp-2 leading-5 mb-1">
         {post.data.title}
       </div>
@@ -42,7 +46,7 @@ const recommendText = POSTS_CONFIG.recommendText
       {post.data.tags?.map((tag) => <Badge type="tag" content={tag} />)}
 
       <a
-        href={`/posts/${post.id}`}
+        href={postHref}
         class="ml-auto hidden items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-primary sm:inline-flex"
       >
         {POSTS_CONFIG.readMoreText}

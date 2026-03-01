@@ -1,0 +1,33 @@
+---
+
+---
+
+<button
+  class="inline-flex items-center justify-center text-foreground cursor-pointer hover:scale-105 size-5 origin-center"
+  id="language-switch"
+  aria-label="Switch Language"
+  title="Switch Language"
+>
+  <span class="icon-[mdi--translate] size-5"></span>
+</button>
+
+<script>
+  const languageSwitch = document.getElementById('language-switch')
+
+  languageSwitch?.addEventListener('click', () => {
+    let currentPath = window.location.pathname
+    
+    // Check if we are currently in an English route
+    if (currentPath.startsWith('/en/') || currentPath === '/en') {
+      // Switch to Spanish (default)
+      let newPath = currentPath.replace(/^\/en\/?/, '/')
+      // If it ends up as just '//', clean it up
+      if (newPath === '//') newPath = '/'
+      window.location.href = newPath
+    } else {
+      // Switch to English
+      const newPath = currentPath === '/' ? '/en' : '/en' + (currentPath.startsWith('/') ? currentPath : '/' + currentPath)
+      window.location.href = newPath
+    }
+  })
+</script>

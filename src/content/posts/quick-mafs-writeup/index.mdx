@@ -1,0 +1,118 @@
+---
+title: "Quick Mafs (Crypto) HTB"
+description: "Coppersmith attack, RSA"
+pubDate: 2025-06-20
+tags: ["RSA", "writeups", "crypto", "HTB", "Coppersmith"]
+cover: assets/cover.png
+---
+
+_Why does maths have to be so hard? Because some dudes with "degrees" decided there have to be 4529837459872034759 different equations and 347293475923709458 different fields instead of just pure numbers._
+
+### Análisis del reto
+En primer lugar, nos encontramos una implementación de _RSA_ aparentemente segura, con un módulo de 2048 bits, pero nos tenemos que fijar en cómo se han cifrado las partes de nuestra flag.
+
+**Consejo antes de empezar**: este reto es avanzado, recomendaría hacer primero el reto _baby quick mafs_. Nos dará una base mucho más sencilla para entender el reto.
+
+El código que se nos proporciona es el siguiente:
+
+```python
+from Crypto.Util.number import *
+from sage.all import *
+from secret import pts,p,q
+
+e = random_prime(2^10) # this will also be a secret , don't complain
+
+N = p*q
+pts = [bytes_to_long(i) for i in pts]
+cts = [pow(i,e,N) for i in pts]
+hint = sum(pts) # bcuz i don't want make chall unsolvable
+print(f"{N},{cts},{hint}")
+```
+
+Tenemos tres puntos clave:
+
+1. **Exponente pequeño**: El exponente público es un número aleatorio de 10 bits, $e <= 1024$.
+2. **Fragmentación de la flag**: Se divide en 3 partes, $m_1, m_2, m_3$, y se cifran de forma independiente.
+3. **Pista**: Se nos da la suma de los tres mensajes, $m_1 + m_2 + m_3 = hint$.
+
+### Teoría
+Muy resumidamente, el ataque _Coppersmith_ nos permite encontrar raíces pequeñas de ecuaciones polinómicas de módulo $N$. Podemos descifrar un mensaje
+sin la clave privada si se cumplen ciertas condiciones:
+- Exponente $e$ debe ser pequeño.
+- Necesitamos información parcial sobre el plaintext.
+
+_Puedes aprender más sobre este tipo de ataque y algunos otros en el siguiente [**paper**](https://link.springer.com/content/pdf/10.1007/3-540-68339-9_1.pdf)_
+
+En este caso, la relación polinómica es la $hint$ que nos dan. Podemos transformar las ecuaciones del cifrado en un sistema de ecuaciones
+polinómicas de módulo $N$.
+- $m1^e - c1 = 0$
+- $m2^e - c2 = 0$
+- $(hint-m1-m2)^e - c3 = 0$
+
+De esta manera tenemos un sistema de 3 ecuaciones con 2 incógnitas. Para resolverlo, usaremos **Bases de Gröbner** con **SageMath**.
+
+### Exploit
+Como no conocemos el exponente, deberemos iterar por los números primos menores a 1024 y para cada candidato, construiremos el polinomio 
+y calculamos su Base de Gröbner.
+
+```python
+from sage.all import *
+from Crypto.Util.number import long_to_bytes
+
+# output.txt
+N = 5981664384988507891478572449251897296717727847212579781448791472718547112403550208352320926002397616312181279859738938646168022481824206589739320298482728968548378237391009138243024910596491172979923991673446034011260330224409794208875199561844435663744993504673450898288161482849187018770655419007178851937895764901674192425054643548670616348302447202491340266057221307744866082461604674766259695903766772980842036324667567850124019171425634526227426965833985082234968255176231124754301435374519312001547854794352023852342682220352109083558778402466358598254431167382653831478713628185748237886560605604945010671417
+cts = [4064195644006411160585797813860027634920635349984344191047587061586620848352019080467087592184982883284356841385019453458842500930190512793665886381102812026066865666098391973664302897278510995945377153937248437062600080527317980210967973971371047319247120004523147629534186514628527555180736833194525516718549330721987873868571634294877416190209288629499265010822332662061001208360467692613959936438519512705706688327846470352610192922218603268096313278741647626899523312431823527174576009143724850631439559205050395629961996905961682800070679793831568617438035643749072976096500278297683944583609092132808342160168, 3972397619896893471633226994966440180689669532336298201562465946694941720775869427764056001983618377003841446300122954561092878433908258359050016399257266833626893700179430172867058140215023211349613449750819959868861260714924524414967854467488908710563470522800186889553825417008118394349306170727982570843758792622898850338954039322560740348595654863475541846505121081201633770673996898756298398831948133434844321091554344145679504115839940880338238034227536355386474785852916335583794757849746186832609785626770517073108801492522816245458992502698143396049695921044554959802743742110180934416272358039695942552488, 956566266150449406104687131427865505474798294715598448065695308619216559681163085440476088324404921175885831054464222377255942505087330963629877648302727892001779224319839877897857215091085980519442914974498275528112936281916338633178398286676523416008365096599844169979821513770606168325175652094633129536643417367820830724397070621662683223203491074814734747601002376621653739871373924630026694962642922871008486127796621355314581093953946913681152270251669050414866366693593651789709229310574005739535880988490183275291507128529820194381392682870291338920077175831052974790596134745552552808640002791037755434586]
+hint = 2674558878275613295915981392537201653631411909654166620884912623530781
+
+# Candidatos
+possible_e = list(primes(2^10))
+found = False
+
+for e in possible_e:
+    print(f"Probando e = {e}...")
+    
+    # Anillo polinómico en módulo N
+    R = Zmod(N)['m1, m2']
+    m1, m2 = R.gens()
+    m3 = hint - m1 - m2
+    
+    # Planteamos las ecuaciones
+    c1, c2, c3 = cts
+    f1 = m1**e - c1
+    f2 = m2**e - c2
+    f3 = m3**e - c3
+    
+    # Generamos el ideal y calculamos su Base de Gröbner
+    I = R.ideal([f1, f2, f3])
+    
+    try:
+        GB = I.groebner_basis()
+    except Exception as err:
+        continue
+        
+    # 4. Buscamos el colapso a grado 1 (la solución exacta)
+    if len(GB) == 2 and GB[0].degree() == 1 and GB[1].degree() == 1:
+        print(f"\nBase de Gröbner encontrada para e={e}")
+        
+        # Despejamos m1 y m2
+        sol_m1 = -GB[0].coefficient({m1:0}) / GB[0].coefficient(m1)
+        sol_m2 = -GB[1].coefficient({m2:0}) / GB[1].coefficient(m2)
+        sol_m3 = hint - sol_m1 - sol_m2
+        
+        # Formateo
+        pt1, pt2, pt3 = long_to_bytes(int(sol_m1)), long_to_bytes(int(sol_m2)), long_to_bytes(int(sol_m3))
+        
+        # Verificamos caracteres imprimibles
+        if all(32 <= b <= 126 for b in pt1 + pt2 + pt3):
+            print(f"Flag: {(pt1 + pt2 + pt3).decode()}")
+            found = True
+            break
+
+if not found:
+    print("Exploit fallido.")
+```
+
+- **El anillo polinómico** $Zmod(N)[m1, m2]$ es el espacio donde vamos a trabajar donde todas las operaciones se realizan módulo $N$ y las variables son $m1$ y $m2$.
+- **El Ideal** $R.ideal([f1, f2, f3])$ es el conjunto de todas las combinaciones lineales de los polinomios $f1, f2, f3$.
+- **El Colapso** $GB = I.groebner_basis()$ es la base de Gröbner del ideal $I$. Si el colapso es exitoso, la base de Gröbner será una base de Gröbner del ideal $I$ y las variables serán $m1$ y $m2$.
+- Finalmente **Despejamos** usando simple álgebra para obtener los valores de $m1, m2$ y $m3$.

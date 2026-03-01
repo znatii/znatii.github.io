@@ -14,9 +14,9 @@ import Comment from '~/components/posts/base/Comment.astro'
 import License from '~/components/posts/base/License.astro'
 
 export async function getStaticPaths() {
-  const sortedPosts = await getAllPosts('es')
+  const sortedPosts = await getAllPosts('en')
   return sortedPosts.map((post, index) => ({
-    params: { id: post.id },
+    params: { id: post.id.replace(/^en\//, '') },
     props: {
       post,
       posts: sortedPosts,

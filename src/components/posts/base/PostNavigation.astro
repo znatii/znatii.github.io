@@ -8,12 +8,19 @@ interface Props {
 }
 
 const { prev, next } = Astro.props
+
+const getPostHref = (post: CollectionEntry<'posts'> | null) => {
+  if (!post) return '#';
+  const isEn = post.id.startsWith('en/');
+  const cleanId = post.id.replace(/^en\//, '');
+  return isEn ? `/en/posts/${cleanId}` : `/posts/${cleanId}`;
+}
 ---
 
 <nav class="flex flex-col sm:flex-row justify-between gap-6 pt-2 border-t border-border/50">
   {
     next && (
-      <a href={`/posts/${next.id}`} class="group flex-1 relative">
+      <a href={getPostHref(next)} class="group flex-1 relative">
         <div class="absolute -left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:-translate-x-1 transition-all duration-200">
           <span class="icon-[ph--arrow-left] size-4 text-primary" />
         </div>
@@ -29,7 +36,7 @@ const { prev, next } = Astro.props
 
   {
     prev && (
-      <a href={`/posts/${prev.id}`} class="group flex-1 relative text-right">
+      <a href={getPostHref(prev)} class="group flex-1 relative text-right">
         <div class="absolute -right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200">
           <span class="icon-[ph--arrow-right] size-4 text-primary" />
         </div>

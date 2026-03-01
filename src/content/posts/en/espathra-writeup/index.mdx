@@ -1,0 +1,168 @@
+---
+title: "Espathra (Crypto) UTCTF 2025"
+description: "Chosen-Plaintext Attack against AES ECB using Byte-at-a-Time ECB Decryption Attack techniques."
+pubDate: 2025-03-15
+tags: ["AES ECB", "writeups", "crypto", "CTF"]
+cover: ../../espathra-writeup/assets/cover.png
+---
+
+## Espathra (UTCTF)
+
+The code that is given for this challenge is the following one:
+
+```python
+#!/usr/bin/env python3
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+key = open("/src/key", "rb").read()
+secret = open("src/flag", "r").read()
+
+cipher = AES.new(key, AES.MODE_ECB)
+
+while 1:
+    print('Enter text to be encrypted: ', end='')
+    x = input()
+    chksum = sum(ord(c) for c in x) % (len(x)+1)
+    pt = x[:chksum] + secret + x[chksum:]
+    ct = cipher.encrypt(pad(pt.encode('utf-8'), AES.block_size))
+    print(hex(int.from_bytes(ct, byteorder='big')))
+```
+
+## Analysis
+
+The code receives an input and calculates a checksum based on the length of our input, it sums the values of each character of our string and calculates the checksum modulo `len(input)+1`. After that it "injects" the flag starting from the "checksum" position of our string and encrypts this text with AES ECB.
+
+![Checksum formula](https://quicklatex.com/cache3/fd/ql_d3f539bcf5bf87e22b4c9a16429a84fd_l3.png)
+
+At first glance it seems to be a Chosen Plaintext Attack challenge in AES, more specifically the typical **Byte-at-a-Time ECB Decryption Attack** but with the condition that the checksum will make it harder for us to set the correct position to the byte we are going to decrypt. We also have an oracle that gives us back all the text we send encrypted. It uses 16 bytes blocks, which is something we also must keep in mind for the solution.
+
+Now the real question is, how do we play with the checksum so that the last byte of the block matches with the first byte of the flag? In the easiest Byte at a Time `15*"A"` would be enough but here the checksum comes into play. Let's assume we know the flag format `"utflag{}"`, we would have the first 7 characters and to get the 8th one according to the attack theory the payload to put the character 8 at the very end would be `8*"A"`. This would give us a checksum of 7, so what will be encrypted is `"AAAAAAA{FLAG}A"` giving the 9th character the last position this time.
+
+## Solution
+
+The first thing will be to make a function that adjusts the checksum for us, first assigning the necessary offset and then adding a value that places the flag where we want it to be.
+
+```python
+def calcChecksum(x):
+  chksum = sum(ord(c) for c in x) % (len(x) + 1)
+  return chksum
+  
+def ajustarChecksum(posCheck, payload):
+  for c in range(65, 90):
+      if calcChecksum(payload + chr(c)) == posCheck:
+          return chr(c)
+```
+
+Continuing with the previous example, "posCheck" would be 8, which means, we want our flag to start from character 8. The function for this example returns the letter "D", this means that even if we send "AAAAAAAAD" the result will be `"AAAAAAAA{FLAG}D"`.
+
+With this adjustment we can now do the attack normally, first we collect the encrypted text from the payload `"AAAAAAAAD"` where the last byte is the 8th character and we bruteforce the character by sending `"AAAAAAAA"+"candidate"+"ajustarChecksum"`:
+
+```python
+#CT1
+posCheck = 15 - len(FLAG)
+payload1 = 'A' * posCheck
+payload1 += ajustarChecksum(posCheck, payload1)
+p.sendlineafter(b'encrypted: ', payload1.encode('utf-8'))
+ct1_hex = p.recvline()[2:].decode().strip()
+
+#CT2
+payload2 = 'A' * posCheck + FLAG
+for candidate in string.printable:
+    payload2 += candidate
+    p.sendlineafter(b'encrypted: ', payload2.encode('utf-8'))
+    ct2_hex = p.recvline()[2:].decode().strip()
+
+    #We Check
+    block_ref = safe_fromhex(ct1_hex)[:final]
+    block_candidate = safe_fromhex(ct2_hex)[:final]
+
+    if block_candidate == block_ref:
+        print(f'next character: {candidate}')
+        FLAG += candidate
+        break
+```
+
+Finally, we must adjust the last details. It can happen that when we are going to recover CT2, we have to move the checksum away so that the flag is in the correct needed position. We must keep in mind the possible bug that if the hex starts with "0" it won't be printed. And we'll need to adjust the code to deal with the first, second and third block of the encryption. The final code would look something like this:
+
+```python
+from pwn import *
+
+#p = process("main.py")
+p = remote("HOST", PORT)
+
+FLAG = ''
+
+def calcChecksum(x):
+    chksum = sum(ord(c) for c in x) % (len(x) + 1)
+    return chksum
+
+def ajustarChecksum(posCheck, payload):
+    for c in range(65, 90):
+        if calcChecksum(payload + chr(c)) == posCheck:
+            return chr(c)
+
+def alejarChecksum(final, payload):
+    for c in range(65, 122):
+        if calcChecksum(payload + chr(c)) > final:
+            return chr(c)
+
+def safe_fromhex(hs):
+    # If the string has an odd length, it adds a '0' at the start.
+    if len(hs) % 2 != 0:
+        hs = "0" + hs
+    return bytes.fromhex(hs)
+
+def decryptBlock(origen,final):
+    global FLAG
+    for _ in range(16):
+        if "}" in FLAG:
+            break
+
+        posCheck = (final-1) - len(FLAG)
+        payload1 = ''
+        payload1 += 'A' * posCheck
+        payload1 += ajustarChecksum(posCheck, payload1)
+        #send payload
+        p.sendlineafter(b'encrypted: ', payload1.encode('utf-8'))
+        ct1_hex = p.recvline()[2:].decode().strip()
+        #collect ct
+        payload2 = ''
+        payload2 += 'A' * posCheck
+        payload2 += FLAG
+        aux = payload2
+
+        for candidate in string.printable:
+            payload2 += candidate
+            payload2 += alejarChecksum(final, payload2)
+            #send payload
+            p.sendlineafter(b'encrypted: ', payload2.encode('utf-8'))
+
+            #collect ct
+            ct2_hex = p.recvline()[2:].decode().strip()
+            try:
+                block_ref = safe_fromhex(ct1_hex)[:final]
+                block_candidate = safe_fromhex(ct2_hex)[:final]
+
+                #check
+                if block_candidate == block_ref:
+                    print(f'next character: {candidate}')
+                    FLAG += candidate
+                    break
+            except:
+                payload2 = aux
+                continue
+            #try again
+            payload2 = aux
+
+decryptBlock(0,16)
+print(FLAG)
+decryptBlock(16,32)
+print(FLAG)
+decryptBlock(32,48)
+print(FLAG)
+```
+
+The expected output is that it tests letter by letter until getting the whole Flag like this:
+
+![Solution output](/images/espathra-solve.png)

@@ -14,16 +14,16 @@ const { size, type } = POSTS_CONFIG.homePageConfig
 const { SKILLS_ENABLED, SKILLS_DATA } = SKILLSSHOWCASE_CONFIG
 
 let showPosts = []
-const pinnedPosts = await getPinnedPosts('es')
+const pinnedPosts = await getPinnedPosts('en')
 const hasPinnedPosts = pinnedPosts.length > 0
 if (hasPinnedPosts) {
   showPosts = pinnedPosts
 } else {
-  showPosts = await getNumPosts(size, 'es')
+  showPosts = await getNumPosts(size, 'en')
 }
 ---
 
-<Layout title="Readme" description={SITE.description}>
+    <Layout title="Readme" description={SITE.description}>
   <div class="relative z-[1]">
     <div class="py-8 pb-10 px-6 sm:px-8">
       <h1 class="flex flex-col gap-2 mb-2">

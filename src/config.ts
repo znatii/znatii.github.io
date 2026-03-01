@@ -204,7 +204,7 @@ export const GITHUB_CONFIG: GithubConfig = {
 export const POSTS_CONFIG: PostConfig = {
   title: 'Posts',
   description: 'Posts by znati',
-  introduce: 'Writeups de CTFs, criptografía y notas de seguridad informática.',
+  introduce: '',
   author: 'znati',
   homePageConfig: {
     size: 2,
